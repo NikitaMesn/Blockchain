@@ -2,120 +2,136 @@ package app;
 
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.security.MessageDigest;
-import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Block implements Serializable {
     private static final long serialVersionUID = 54548826703748578L;
-    private int id;
-    private long timestampFirst;
-    private long timestamp;
+
+
+    private final int id;
+    private final String minerId;
+    private final long timestampStart;
+    private long timestampEnd;
     private String hashBlock;
-    private String previousHashBlock;
     private long magicNumber;
+    private final int numberOfZeros;
+    private int numberOfZerosNext;
+    private final Block previous;
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Block block = (Block) o;
-        return id == block.id && timestampFirst == block.timestampFirst && timestamp == block.timestamp && magicNumber == block.magicNumber && Objects.equals(hashBlock, block.hashBlock) && Objects.equals(previousHashBlock, block.previousHashBlock);
-    }
+    public Block(String minerId, Block previous ) {
+        timestampStart = new Date().getTime();
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, timestampFirst, timestamp, hashBlock, previousHashBlock, magicNumber);
-    }
+        if (previous == null) {
+            this.minerId = minerId;
+            this.id = 1;
+            this.previous = null;
+            this.numberOfZeros = 0;
+            generateData();
+            this.numberOfZerosNext = this.numberOfZerosNext + numberOfZerosForNext();
 
-    public Block(String zeros) {
-        long time = new Date().getTime();
-        this.id = 1;
-        this.previousHashBlock = "" + 0;
-        this.timestampFirst = time;
-
-
-        boolean isFind = false;
-        String s = zeros;
-
-        while(!isFind) {
-            if(hashBlock != null && hashBlock.substring(0, s.length()).contains(s)) {
-                isFind = true;
-            }else {
-                this.magicNumber = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
-                this.hashBlock = applySha256("" + magicNumber );
-                long time2 = new Date().getTime();
-                this.timestamp = time2;
-            }
-
+        } else {
+            this.minerId = minerId;
+            this.previous = previous;
+            this.id = previous.getId() + 1;
+            this.numberOfZeros = previous.getNumberOfZerosNext();
+            generateData();
+            this.numberOfZerosNext = this.numberOfZeros + numberOfZerosForNext();
         }
 
     }
 
 
-    public Block(Block previous, String zeros) {
+    private void generateData() {
 
-        long time = new Date().getTime();
-        this.id = previous.getId() + 1;
-        this.previousHashBlock = previous.getHash();
-        this.timestampFirst = new Date().getTime();
+        do {
+            this.magicNumber = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+            this.hashBlock = applySha256("" + magicNumber );
+            this.timestampEnd = new Date().getTime();
+            //System.out.println(this.id + " " + hashBlock);
+        } while (!checkZeros());
 
+    }
 
-        boolean isFind = false;
-        String s = zeros;
-        while (!isFind) {
-            if (hashBlock != null && hashBlock.substring(0, s.length()).contains(s)) {
-                isFind = true;
-            } else {
-                this.magicNumber = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
-                this.hashBlock = applySha256("" + magicNumber);
-                long time2 = new Date().getTime();
-                this.timestamp = time2;
+    private boolean checkZeros() {
+        for (int i = 0; i < numberOfZeros; i++) {
+            if (hashBlock.charAt(i) != '0') {
+                return false;
             }
         }
+        return true;
+    }
+
+    private int numberOfZerosForNext() {
+        long time = (timestampEnd - timestampStart) / 1000;
+        if (time  < 15) return 1;
+        if (time > 15 && this.id != 1) return -1;
+        return 0;
     }
 
 
-        public String getHash () {
-            return hashBlock;
-        }
-        public int getId () {
-            return id;
-        }
+    public int getNumberOfZeros() {
+        return this.numberOfZeros;
+    }
 
-        private String applySha256 (String input){
-            try {
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                /* Applies sha256 to our input */
-                byte[] hash = digest.digest(input.getBytes("UTF-8"));
-                StringBuilder hexString = new StringBuilder();
-                for (byte elem : hash) {
-                    String hex = Integer.toHexString(0xff & elem);
-                    if (hex.length() == 1) hexString.append('0');
-                    hexString.append(hex);
-                }
-                return hexString.toString();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+
+    private String applySha256 (String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            /* Applies sha256 to our input */
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+
+            for (byte elem : hash) {
+                String hex = Integer.toHexString(0xff & elem);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
             }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-
-
-
-    private long timeGenerating() {
-
-        return  (timestamp - timestampFirst) ;
     }
 
-        public String toString () {
-            return "Block: " + "\n"
-                    + "Id: " + id + "\n"
-                    + "Timestamp: " + timestamp + "\n"
-                    + "Magic number: " + +magicNumber + "\n"
-                    + "Hash of the previous block: " + "\n" + previousHashBlock + "\n"
-                    + "Hash of the block: \n" + hashBlock + "\n"
-                    + "Block was generating for " + timeGenerating() +" seconds\n";
 
+    public String toString () {
+
+        String previousHash = this.id != 1 ?
+                "Hash of the previous block: " + "\n" + previous.getHashBlock() + "\n" :
+                "Hash of the previous block: 0 \n";
+
+        String lastStr;
+        if (this.numberOfZeros > this.numberOfZerosNext) {
+            lastStr = "N was decreased by 1 \n";
+        } else if (this.numberOfZeros < this.numberOfZerosNext) {
+            lastStr = "N was increased to " + this.numberOfZerosNext + "\n";
+        } else {
+            lastStr = "N stays the same \n";
         }
+
+
+        return "Block: " + "\n"
+                + "Created by miner # " + minerId + "\n"
+                + "Id: " + id + "\n"
+                + "Timestamp: " + timestampEnd + "\n"
+                + "Magic number: " + magicNumber + "\n"
+                + previousHash
+                + "Hash of the block: \n" + hashBlock + "\n"
+                + "Block was generating for " + ((timestampEnd - timestampStart) / 1000) +" seconds\n"
+                + lastStr;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getHashBlock() {
+        return hashBlock;
+    }
+
+    public int getNumberOfZerosNext() {
+        return numberOfZerosNext;
+    }
 }

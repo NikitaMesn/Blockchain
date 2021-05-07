@@ -1,21 +1,36 @@
 package app;
 
-import java.util.Scanner;
+
+import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
     public static void main(String[] args)  {
-        Scanner input = new Scanner(System.in);
-        System.out.println("Enter how many zeros the hash must start with: ");
-        int numberOfZeros = input.nextInt();
+        Blockchain b = new Blockchain();
+        b.loadChain("data");
+        ExecutorService es = Executors.newFixedThreadPool(10);
+        ArrayList<Miner> miners = new ArrayList<>();
 
-        Blockchain chain = new Blockchain(numberOfZeros);
-        chain.loadChain("chain.data");
         for (int i = 0; i < 5; i++) {
-            chain.generateBlock();
+
+            for (int mnr = 0; mnr < 10; mnr++) {
+                miners.add(new Miner(b));
+            }
+
+            try {
+                b.addNewBlock(es.invokeAny(miners));
+                b.printLastBlock();
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+
+
         }
 
-        chain.printAllBlocks();
-        chain.saveChain("chain.data");
+        b.saveChain("data");
+        es.shutdown();
 
     }
 }
