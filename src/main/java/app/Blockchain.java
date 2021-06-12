@@ -3,8 +3,10 @@ package app;
 import java.io.*;
 import java.util.ArrayList;
 
+
 public class Blockchain  implements Serializable {
     private static final long serialVersionUID = 54548826703748578L;
+
 
     private ArrayList<Block> blockList;
     private int numberOfZeros;
@@ -13,12 +15,18 @@ public class Blockchain  implements Serializable {
         this.blockList = new ArrayList<>();
     }
 
-    public Block nextBlock(String miner) {
+    public Block nextBlock(String miner, Chat chat) throws FileNotFoundException {
+
+
         Block block;
         if (blockList.size() != 0) {
-            block = new Block(miner, blockList.get(blockList.size() - 1));
+
+            block = new Block(miner, blockList.get(blockList.size() - 1), chat);
         } else {
-            block = new Block(miner, null);
+
+
+            block = new Block(miner, null, chat);
+
         }
 
         return block;

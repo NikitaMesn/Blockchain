@@ -10,18 +10,19 @@ import java.util.concurrent.ThreadLocalRandom;
 public class Block implements Serializable {
     private static final long serialVersionUID = 54548826703748578L;
 
-
     private final int id;
     private final String minerId;
     private final long timestampStart;
     private long timestampEnd;
     private String hashBlock;
+    private final String data;
     private long magicNumber;
     private final int numberOfZeros;
     private int numberOfZerosNext;
     private final Block previous;
 
-    public Block(String minerId, Block previous ) {
+
+    public Block(String minerId, Block previous, Chat chat ) {
         timestampStart = new Date().getTime();
 
         if (previous == null) {
@@ -31,6 +32,7 @@ public class Block implements Serializable {
             this.numberOfZeros = 0;
             generateData();
             this.numberOfZerosNext = this.numberOfZerosNext + numberOfZerosForNext();
+            this.data = "no messages\n";
 
         } else {
             this.minerId = minerId;
@@ -39,7 +41,10 @@ public class Block implements Serializable {
             this.numberOfZeros = previous.getNumberOfZerosNext();
             generateData();
             this.numberOfZerosNext = this.numberOfZeros + numberOfZerosForNext();
+            this.data = chat.receiveAllMessages();
         }
+
+        chat.addMessage(Thread.currentThread().getName() + ": Hello!");
 
     }
 
@@ -51,11 +56,11 @@ public class Block implements Serializable {
             this.hashBlock = applySha256("" + magicNumber );
             this.timestampEnd = new Date().getTime();
             //System.out.println(this.id + " " + hashBlock);
-        } while (!checkZeros());
+        } while (!isFound());
 
     }
 
-    private boolean checkZeros() {
+    private boolean isFound() {
         for (int i = 0; i < numberOfZeros; i++) {
             if (hashBlock.charAt(i) != '0') {
                 return false;
@@ -119,6 +124,7 @@ public class Block implements Serializable {
                 + "Magic number: " + magicNumber + "\n"
                 + previousHash
                 + "Hash of the block: \n" + hashBlock + "\n"
+                + "Block data: " + data
                 + "Block was generating for " + ((timestampEnd - timestampStart) / 1000) +" seconds\n"
                 + lastStr;
     }
